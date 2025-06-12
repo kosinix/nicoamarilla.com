@@ -1,0 +1,31 @@
+# SystemD Service for nicoamarilla.com
+# location: /etc/systemd/system/
+# file: /etc/systemd/system/nico.service
+# update systemd: sudo systemctl daemon-reload
+# restart: sudo systemctl restart nico
+# status: sudo systemctl status nico
+# start-on-boot: sudo systemctl enable nico
+
+[Unit]
+Description=Q
+
+[Service]
+ExecStart=/home/ubuntu/.nvm/versions/node/v20.14.0/bin/node /home/ubuntu/nico/index.js
+
+# Required on some systems
+WorkingDirectory=/home/ubuntu/nico
+
+# Restart service after 10 seconds if node service crashes
+Restart=always
+RestartSec=10
+
+# Output to syslog
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=nodejs-nico
+#User=<alternate user>
+#Group=<alternate group>
+Environment=NODE_ENV=live PORT=9100
+
+[Install]
+WantedBy=multi-user.target
