@@ -15,5 +15,12 @@ router.get('/', async (req, res, next) => {
         next(err)
     }
 });
+router.get('/apps/countdown', async (req, res, next) => {
+    try {
+        res.render('countdown.html')
+    } catch (err) {
+        next(err)
+    }
+});
 
 module.exports = router;
