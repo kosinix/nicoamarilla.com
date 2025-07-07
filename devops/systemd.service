@@ -7,13 +7,13 @@
 # start-on-boot: sudo systemctl enable nico
 
 [Unit]
-Description=Q
+Description=Nico
 
 [Service]
-ExecStart=/home/ubuntu/.nvm/versions/node/v20.14.0/bin/node /home/ubuntu/nico/index.js
+ExecStart=/usr/bin/node /home/ubuntu/nicoamarilla.com/index.js
 
 # Required on some systems
-WorkingDirectory=/home/ubuntu/nico
+WorkingDirectory=/home/ubuntu/nicoamarilla.com
 
 # Restart service after 10 seconds if node service crashes
 Restart=always
