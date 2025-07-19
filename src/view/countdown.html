@@ -16,13 +16,13 @@
           <path class="bg" d="M18 2.0845
             a 15.9155 15.9155 0 0 1 0 31.831
             a 15.9155 15.9155 0 0 1 0 -31.831" />
-          <path :style="`stroke-dasharray: ${percentage} 100;`" class="progress" d="M18 2.0845
+          <path :style="`transition-duration: ${speed}; stroke-dasharray: ${percentage} 100;`" class="progress" d="M18 2.0845
             a 15.9155 15.9155 0 0 1 0 31.831
             a 15.9155 15.9155 0 0 1 0 -31.831" />
         </svg>
       </div>
       <div class="text">
-        <div @click="onToggleEdit" v-if="!isEditableTime">${timeOutput}</div>
+        <div @click="onEditTime" v-if="!isEditableTime">${timeOutput}</div>
         <div v-if="isEditableTime">
           <input v-model="timeInput" ref="timeInput" id="timeInput" @blur="onTimeInputBlur" placeholder="00:00:00"
             type="text" class="form-control text-center">
@@ -30,15 +30,22 @@
       </div>
     </div>
 
-    <button @click="onToggle" class="btn btn-primary w-100">Play</button>
+    <button @click="onToggle" class="btn btn-primary w-100">
+      <template v-if="timerStatus===0">Play</template>
+      <template v-if="timerStatus===1">Pause</template>
+      <template v-if="timerStatus===2">Resume</template>
+      <template v-if="timerStatus===3">Reset</template>
+    </button>
   </div>
 </div>
 {% endblock %}
 {% block scripts %}
 {{super()}}
 <script>
+  let timerId = null
   let startTime = 0
   let endTime = 0
+  let secondsRemaining = 0
   let vApp = new Vue({
     el: '#vApp',
     delimiters: ["${", "}"],
@@ -46,21 +53,19 @@
     ],
     data: {
       pending: false,
-      start: false,
-      timerId: null,
-      interval: 1000,
       isEditableTime: false,
       timeInput: '00:00:10',
       timeOutput: '',
       endTime: 0,
       percentage: 0,
+      speed: '0s',
+      timerStatus: 0, // 0 - ready, 1 - running, 2 - paused, 3 - ended
     },
     watch: {
       isEditableTime: function (cur, prev) {
         const me = this
-        me.next
         if (me.isEditableTime) {
-          this.$nextTick(() => {
+          me.$nextTick(() => {
             me.$refs.timeInput.focus();
           })
         }
@@ -70,31 +75,31 @@
     mounted: function () {
       const me = this
 
-      me.timeOutput = me.processInput(me.timeInput)
-
+      me.onTimeInputBlur()
     },
 
     methods: {
-      processInput: function (timeInput) {
+      onEditTime: function () {
+        const me = this
+        if(me.timerStatus===0){
+          me.isEditableTime = true
+        }
+      },
+
+      onTimeInputBlur: function () {
         const me = this
 
-        timeInput = String(timeInput).replace(/[^0-9:]/g, '');
-        timeInput = String(timeInput).replace(/(:)+/ig, ':').replace(/^:+|:+$/g, '');
+        const time = me.getTimeComponents(me.timeInput)
+        me.timeInput = me.timeToDisplay(time)
+        me.timeOutput = me.timeInput
+        me.isEditableTime = false
 
-        let components = timeInput.split(':')
-        let hours = 0, minutes = 0, seconds = 0
-        if (components.length >= 3) {
-          hours = Math.min(23, parseInt(components.at(0)))
-          minutes = Math.min(59, parseInt(components.at(1)))
-          seconds = Math.min(59, parseInt(components.at(2)))
-        } else if (components.length >= 2) {
-          minutes = Math.min(59, parseInt(components.at(0)))
-          seconds = Math.min(59, parseInt(components.at(1)))
-        } else if (components.length >= 1) {
-          seconds = Math.min(59, parseInt(components.at(0)))
-        }
+      },
 
-        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+      timeToDisplay: function (time) {
+        const me = this
+
+        return `${String(time?.hours).padStart(2, '0')}:${String(time?.minutes).padStart(2, '0')}:${String(time?.seconds).padStart(2, '0')}`
       },
 
       getTimeComponents: function (timeInput) {
@@ -102,6 +107,7 @@
 
         timeInput = String(timeInput).replace(/[^0-9:]/g, '');
         timeInput = String(timeInput).replace(/(:)+/ig, ':').replace(/^:+|:+$/g, '');
+        if (!timeInput) timeInput = '0'
 
         let components = timeInput.split(':')
         let hours = 0, minutes = 0, seconds = 0
@@ -120,73 +126,66 @@
           hours, minutes, seconds
         }
       },
-      onTimeInputBlur: function () {
-        const me = this
 
-        me.timeInput = me.processInput(me.timeInput)
-        me.timeOutput = me.timeInput
-        me.isEditableTime = false
-
-      },
-      onTick: function () {
-        const me = this
-        const now = moment();
-        const remaining = moment.duration(endTime.diff(now));
-
-        let rHours = Math.floor(remaining.hours())
-        let rMinutes = Math.floor(remaining.minutes())
-        let rSeconds = Math.floor(remaining.seconds())
-        me.percentage = Math.abs(Math.floor(remaining.asSeconds() / moment.duration(endTime.diff(startTime)).asSeconds() * 100 - 100))
-
-        console.log(`${rHours}:${rMinutes}:${rSeconds}`, Math.abs(remaining.asSeconds() / moment.duration(endTime.diff(startTime)).asSeconds() * 100 - 100))
-        if (remaining.asSeconds() <= 0) {
-          me.timeOutput = "00:00:00";
-          return; // Stop when timer ends
-        }
-
-        me.timeOutput = me.processInput(`${rHours}:${rMinutes}:${rSeconds}`)
-
-        requestAnimationFrame(me.onTick)
-      },
-      
-      onToggleEdit: function () {
-        const me = this
-        me.isEditableTime = !me.isEditableTime
-      },
       startTimer: function () {
         const me = this
-
+        // me.speed = '0s';
+        // me.percentage = 0;
         const { hours, minutes, seconds } = me.getTimeComponents(me.timeInput)
         startTime = moment()
-        endTime = moment().add(hours, 'hours').add(minutes, 'minutes').add(seconds, 'seconds')
+        endTime = startTime.clone().add(hours, 'hours').add(minutes, 'minutes').add(seconds, 'seconds')
 
-        requestAnimationFrame(me.onTick)
+        secondsRemaining = Math.floor(moment.duration(endTime.diff(startTime)).asSeconds())
+        // console.log('secondsRemaining', secondsRemaining)
+        // me.speed = `${moment.duration(endTime.diff(startTime)).asSeconds() - 1}s`
+        // me.percentage = 100;
+        timerId = setInterval(me.onTick, 1000)
+
       },
+
+      onTick: function () {
+        const me = this
+
+        if (me.timerStatus === 1) {
+          secondsRemaining -= 1
+          // console.log(secondsRemaining)
+
+          let remaining = moment.duration(secondsRemaining, 'seconds')
+          let rHours = Math.floor(remaining.hours())
+          let rMinutes = Math.floor(remaining.minutes())
+          let rSeconds = Math.floor(remaining.seconds())
+          me.timeOutput = me.timeToDisplay({
+            hours: rHours,
+            minutes: rMinutes,
+            seconds: rSeconds,
+          })
+
+          if (secondsRemaining <= 0) {
+            clearInterval(timerId)
+            me.timerStatus = 3 // ended
+          }
+
+        }
+      },
+
+      
+
       onToggle: function () {
         const me = this;
-        if (me.start) {
-          clearInterval(me.timerId)
-          me.start = false
-        } else {
+        if (me.timerStatus === 0) {
+          me.timerStatus = 1
           me.startTimer()
-          // let components = me.timeInput.split(':')
-          // let hours = 0, minutes = 0, seconds = 0
-          // if (components.length >= 3) {
-          //   hours = components.at(0)
-          //   minutes = components.at(1)
-          //   seconds = components.at(2)
-          // } else if (components.length >= 2) {
-          //   minutes = components.at(0)
-          //   seconds = components.at(1)
-          // } else if (components.length >= 1) {
-          //   seconds = components.at(0)
-          // }
 
-          // const duration = (hours * 60 * 60) + (minutes * 60) + seconds; // unit in seconds
+        } else if (me.timerStatus === 1) {
+          me.timerStatus = 2 // pause
 
-          // me.endTime = Date.now() + duration * 1000; // in ms
+        } else if (me.timerStatus === 2) {
+          me.timerStatus = 1 // running
 
-          // me.timerId = setInterval(me.runTimer, me.interval);
+        } else if (me.timerStatus === 3) { // ended
+          me.timerStatus = 0 // ready
+          me.timeOutput = me.timeInput
+
         }
       }
     }
