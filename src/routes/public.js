@@ -22,5 +22,12 @@ router.get('/apps/countdown', async (req, res, next) => {
         next(err)
     }
 });
+router.get('/apps/currency', async (req, res, next) => {
+    try {
+        res.render('currency.html')
+    } catch (err) {
+        next(err)
+    }
+});
 
 module.exports = router;

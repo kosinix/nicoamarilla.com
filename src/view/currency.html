@@ -1,0 +1,132 @@
+{% extends "document.html" %}
+
+{% block body %}
+<div class="col-md-12">
+	<!-- Navbar -->
+	<nav class="navbar navbar-expand-lg">
+		<a class="navbar-brand" href="/">Back</a>
+		<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+			<span class="navbar-toggler-icon"></span>
+		</button>
+	</nav>
+	<div id="vApp" v-cloak class="app-countdown" data-theme="blue" :data-pending="pending">
+		<form action="">
+			<div class="form-group">
+				<label for="currency1">Currency 1</label>
+				<select v-model="currency1" name="currency1" id="currency1" class="form-control">
+					<option v-for="(c, i) in currenciesArray" :value="c.code">${c.name}</option>
+				</select>
+			</div>
+			<div class="form-group">
+				<label for="amount1">Amount 1</label>
+				<input v-model="amount1" name="amount1" id="amount1" type="number" class="form-control">
+			</div>
+			<div class="form-group">
+				<label for="currency2">Currency 2</label>
+				<select v-model="currency2" name="currency2" id="currency2" class="form-control">
+					<option v-for="(c, i) in currenciesArray" :value="c.code">${c.name}</option>
+				</select>
+			</div>
+			<div class="form-group">
+				<label for="amount2">Amount 2</label>
+				<input v-model="amount2" name="amount2" id="amount2" type="number" class="form-control">
+			</div>
+			<div class="form-group">
+				<label for="rate">Rate</label>
+				<input v-model="rate" name="rate" id="rate" type="number" class="form-control">
+			</div>
+			<button @click="convert" class="btn btn-primary" type="button">Convert</button>
+		</form>
+	</div>
+
+</div>
+{% endblock %}
+{% block scripts %}
+{{super()}}
+<script type="module">
+	import { currencies } from '{{app.url}}/js/currencies.mjs';
+
+	let currenciesArray = _.map(currencies, (name, code) => {
+		return {
+			code: code,
+			name: name
+		}
+	})
+	currenciesArray.sort((a, b) => a.name.localeCompare(b.name));
+	const php = {}
+	const BASE_ENDPOINT = `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies`
+	let vApp = new Vue({
+		el: '#vApp',
+		delimiters: ["${", "}"],
+		mixins: [
+		],
+		data: {
+			pending: false,
+			currencies: currencies,
+			currenciesArray: currenciesArray,
+			php: php,
+			amount1: 1,
+			amount2: 0,
+			rate: 0,
+			rateList: {},
+			currency1: 'php',
+			currency2: 'vnd'
+		},
+		watch: {
+			amount1: async function (newVal, oldVal) {
+				const me = this
+				me.amount2 = me.amount1 * me.rate	
+			},
+			currency1: async function (newVal, oldVal) {
+				const me = this
+				await me.fetchRates()
+				me.convert()
+			},
+			currency2: async function (newVal, oldVal) {
+				const me = this
+				me.rate = _.find(me.rateList, (o, key) => {
+					return key == newVal
+				})
+				me.convert()
+			}
+		},
+		mounted: async function () {
+			const me = this
+			await me.fetchRates()
+			me.convert()
+
+		},
+
+		methods: {
+			convert: function () {
+				const me = this
+
+				me.amount2 = (me.amount1 * me.rate)
+			},
+			fetchRates: async function () {
+				const me = this
+				me.pending = true
+				try {
+					let response = await fetch(`${BASE_ENDPOINT}/${me.currency1}.min.json`, {
+						method: 'GET',
+					})
+					if (response.ok) {
+						let json = await response.json();
+						me.rateList = json[me.currency1]
+						me.rate = _.find(me.rateList, (o, key) => {
+							return key == me.currency2
+						})
+						console.log(me.rate)
+					}
+					me.pending = false
+
+				} catch (err) {
+					me.pending = false
+					throw new Error(await response.text())
+				}
+
+			},
+		}
+	})
+</script>
+{% endblock %}
